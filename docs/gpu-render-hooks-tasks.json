@@ -1,0 +1,212 @@
+{
+  "project": "restty-gpu-render-hooks",
+  "branch": "feat/gpu-render-hooks",
+  "estimatedEffort": "3-5 days",
+  "stories": [
+    {
+      "id": "GPU-001",
+      "title": "GPU Render Hook Type Definitions",
+      "status": "todo",
+      "priority": "P0",
+      "phase": 1,
+      "story": "As a plugin author, I want typed GPU render hook interfaces, so that I can register post-processing shaders with full IDE support.",
+      "acceptance": [
+        "ResttyGPURenderHook type exported with shaderGLSL, shaderWGSL, animated fields",
+        "ResttyGPURenderHookOptions type exported with priority and paneId",
+        "ResttyGPURenderState type exported with all Ghostty-compatible fields",
+        "ResttyPluginContext type includes addGPURenderHook method signature",
+        "ResttyPluginInfo includes gpuRenderHooks count",
+        "ResttyPluginRuntimeDisposerKind includes 'gpu-render-hook'",
+        "All new types exported from src/index.ts",
+        "RESTTY_PLUGIN_API_VERSION bumped to 2"
+      ],
+      "files": [
+        { "path": "src/app/restty.ts", "action": "modify", "changes": "Add types, extend PluginContext, extend PluginInfo, extend DisposerKind" },
+        { "path": "src/index.ts", "action": "modify", "changes": "Export new types" }
+      ],
+      "blockedBy": [],
+      "blocks": ["GPU-004", "GPU-005"]
+    },
+    {
+      "id": "GPU-002",
+      "title": "Post-Processing Shader Sources",
+      "status": "todo",
+      "priority": "P0",
+      "phase": 2,
+      "story": "As the renderer, I need fullscreen quad shaders and Ghostty uniform wrappers for both WebGPU and WebGL2, so that user mainImage() functions can be executed as post-processing passes.",
+      "acceptance": [
+        "WGSL fullscreen quad vertex shader (outputs position + v_uv)",
+        "WGSL post-process fragment wrapper with Ghostty uniform struct",
+        "GLSL 300 ES post-process vertex shader",
+        "GLSL 300 ES post-process fragment wrapper with all Ghostty uniforms as individual uniforms",
+        "Both wrappers call mainImage(fragColor, fragCoord) following Ghostty convention",
+        "User shader source is concatenated into the wrapper before compilation",
+        "Passthrough shader available as fallback (samples iChannel0 unmodified)"
+      ],
+      "files": [
+        { "path": "src/renderer/post-process-shaders.ts", "action": "create", "changes": "All shader source strings" }
+      ],
+      "blockedBy": [],
+      "blocks": ["GPU-003"]
+    },
+    {
+      "id": "GPU-003",
+      "title": "Post-Process Pipeline Infrastructure",
+      "status": "todo",
+      "priority": "P0",
+      "phase": 3,
+      "story": "As the renderer, I need to manage intermediate textures and post-processing pipelines, so that the terminal frame can be captured as iChannel0 and processed by plugin shaders.",
+      "acceptance": [
+        "WebGPUPostProcessState type with: intermediateTexture, intermediateView, sampler, pipeline, bindGroup, uniformBuffer",
+        "WebGLPostProcessState type with: fbo, colorTexture, program, uniformLocations, vao",
+        "createWebGPUPostProcess(device, format, width, height, shaderSource) function",
+        "createWebGLPostProcess(gl, width, height, shaderSource) function",
+        "destroyWebGPUPostProcess(state) cleanup function",
+        "destroyWebGLPostProcess(state) cleanup function",
+        "resizeWebGPUPostProcess(state, width, height) recreates texture",
+        "resizeWebGLPostProcess(state, width, height) recreates FBO texture",
+        "updateGhosttyUniformsWebGPU(device, buffer, state: GhosttyUniformState) writes std140 buffer",
+        "updateGhosttyUniformsWebGL(gl, program, state: GhosttyUniformState) sets individual uniforms",
+        "GhosttyUniformState type covering all scene/cursor/focus/color uniforms",
+        "Shader compilation errors caught and reported gracefully"
+      ],
+      "files": [
+        { "path": "src/renderer/types.ts", "action": "modify", "changes": "Add PostProcess state types" },
+        { "path": "src/renderer/post-process.ts", "action": "create", "changes": "All create/destroy/resize/update functions" }
+      ],
+      "blockedBy": ["GPU-002"],
+      "blocks": ["GPU-005"]
+    },
+    {
+      "id": "GPU-004",
+      "title": "Plugin API: addGPURenderHook on ResttyPluginContext",
+      "status": "todo",
+      "priority": "P0",
+      "phase": 4,
+      "story": "As a plugin author, I want to call ctx.addGPURenderHook() during activation, so that my shader is compiled and registered for post-processing.",
+      "acceptance": [
+        "addGPURenderHook(hook, options?) method on ResttyPluginContext",
+        "Returns ResttyPluginDisposable with dispose() for cleanup",
+        "GPU hooks stored in gpuRenderHooks[] array on Restty class",
+        "Priority-sorted like other interceptors",
+        "Hook registration triggers shader compilation via callback to renderer",
+        "Hook disposal triggers pipeline teardown",
+        "First hook registration triggers intermediate texture allocation",
+        "Last hook disposal triggers texture deallocation",
+        "pluginInfo() reports gpuRenderHooks count",
+        "attachRuntimeDisposer tracks 'gpu-render-hook' kind",
+        "Callback mechanism from Restty class to per-pane renderer closures"
+      ],
+      "files": [
+        { "path": "src/app/restty.ts", "action": "modify", "changes": "Add gpuRenderHooks array, addGPURenderHook, context wiring, disposal, diagnostics" }
+      ],
+      "blockedBy": ["GPU-001"],
+      "blocks": ["GPU-005"]
+    },
+    {
+      "id": "GPU-005",
+      "title": "Two-Pass Render Integration (tickWebGPU + tickWebGL)",
+      "status": "todo",
+      "priority": "P0",
+      "phase": 5,
+      "story": "As the renderer, I want to conditionally switch between single-pass and two-pass mode based on active GPU hooks, so that post-processing shaders run without affecting the default path.",
+      "acceptance": [
+        "tickWebGPU: when GPU hooks active, Pass 1 renders to intermediateTexture instead of swapchain",
+        "tickWebGPU: Pass 2 draws fullscreen quad with plugin shader to swapchain",
+        "tickWebGPU: when NO GPU hooks, code path is IDENTICAL to upstream (single pass)",
+        "tickWebGL: same conditional FBO-based two-pass approach",
+        "Ghostty uniform buffer populated per frame with: iTime, iResolution, iFrame, iTimeDelta, iFrameRate",
+        "Cursor tracking: iPreviousCursor updated when cursor moves, iTimeCursorChange timestamped",
+        "Focus tracking: iFocus set via document focus/blur, iTimeFocus timestamped",
+        "Color uniforms: iBackgroundColor, iForegroundColor, iCursorColor from theme/WASM state",
+        "iCurrentCursor computed from cursor.col * cellW, cursor.row * cellH, cellW, cellH",
+        "needsRender forced true when animated GPU hooks are active (continuous rendering)",
+        "Canvas resize recreates intermediate texture via existing updateSize/resizeState",
+        "Performance: single additional fullscreen quad draw call when enabled"
+      ],
+      "files": [
+        { "path": "src/app/index.ts", "action": "modify", "changes": "Conditional two-pass in tickWebGPU (~lines 5867-6036), tickWebGL, cursor tracking, focus tracking, resize hook, uniform population" }
+      ],
+      "blockedBy": ["GPU-003", "GPU-004"],
+      "blocks": ["GPU-006"]
+    },
+    {
+      "id": "GPU-006",
+      "title": "Build Verification + Test Plugin",
+      "status": "todo",
+      "priority": "P1",
+      "phase": 6,
+      "story": "As a developer, I want to verify the implementation compiles and works with a real shader plugin, so that I can confirm the feature is functional before submitting a PR.",
+      "acceptance": [
+        "npm run build / tsc passes with zero errors",
+        "Example CRT plugin activates via restty.use() and renders scanlines + barrel distortion",
+        "Example cursor trail plugin activates and shows animated trail between cursor positions",
+        "Disposing plugins reverts to clean single-pass rendering",
+        "No regressions in existing functionality (terminal renders correctly without plugins)"
+      ],
+      "files": [
+        { "path": "examples/plugin-crt.ts", "action": "create", "changes": "CRT shader plugin example" },
+        { "path": "examples/plugin-cursor-trail.ts", "action": "create", "changes": "Cursor trail shader plugin example" }
+      ],
+      "blockedBy": ["GPU-005"],
+      "blocks": []
+    }
+  ],
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Type Definitions",
+      "estimate": "2h",
+      "stories": ["GPU-001"],
+      "description": "Add all TypeScript types for the GPU render hook plugin API. No runtime code changes."
+    },
+    {
+      "phase": 2,
+      "name": "Shader Sources",
+      "estimate": "3h",
+      "stories": ["GPU-002"],
+      "description": "Write the WGSL and GLSL wrapper shaders that host user mainImage() functions."
+    },
+    {
+      "phase": 3,
+      "name": "Renderer Infrastructure",
+      "estimate": "6h",
+      "stories": ["GPU-003"],
+      "description": "Create/destroy/resize intermediate textures and post-process pipelines for both WebGPU and WebGL2."
+    },
+    {
+      "phase": 4,
+      "name": "Plugin API Wiring",
+      "estimate": "4h",
+      "stories": ["GPU-004"],
+      "description": "Wire addGPURenderHook into the Restty plugin system with registration, disposal, and diagnostics."
+    },
+    {
+      "phase": 5,
+      "name": "Render Integration",
+      "estimate": "8h",
+      "stories": ["GPU-005"],
+      "description": "The core change: modify tickWebGPU and tickWebGL for conditional two-pass rendering with per-frame Ghostty uniform population."
+    },
+    {
+      "phase": 6,
+      "name": "Verification",
+      "estimate": "3h",
+      "stories": ["GPU-006"],
+      "description": "Build, test with real shader plugins, verify no regressions."
+    }
+  ],
+  "dependencyGraph": {
+    "GPU-001": { "blocks": ["GPU-004", "GPU-005"] },
+    "GPU-002": { "blocks": ["GPU-003"] },
+    "GPU-003": { "blocks": ["GPU-005"] },
+    "GPU-004": { "blocks": ["GPU-005"] },
+    "GPU-005": { "blocks": ["GPU-006"] },
+    "GPU-006": { "blocks": [] }
+  },
+  "criticalPath": ["GPU-001", "GPU-002", "GPU-003", "GPU-005", "GPU-006"],
+  "parallelizable": [
+    { "parallel": ["GPU-001", "GPU-002"], "note": "Types and shaders can be written simultaneously" },
+    { "parallel": ["GPU-003", "GPU-004"], "note": "Renderer infra and plugin API wiring can overlap after types are done" }
+  ]
+}

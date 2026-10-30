@@ -43,4 +43,17 @@ export type {
   ResttyBufferFontSource,
   ResttyLocalFontSource,
   ResttyFontPreset,
+  ResttyAppSession,
+  ResttyAppCallbacks,
+  ResttyAppOptions,
+  ResttyAppInputPayload,
 } from "./app/types";
+
+// Session sharing — allows N terminal instances to share 1 WASM module + 1 WebGPU core.
+export { createResttyAppSession, getDefaultResttyAppSession } from "./app/session";
+
+// Pane types needed by React integrations.
+export type { ResttyPaneSplitDirection } from "./app/panes-types";
+
+// PTY transport types for custom protocol bridging.
+export type { PtyTransport, PtyCallbacks, PtyConnectOptions } from "./pty/types";
